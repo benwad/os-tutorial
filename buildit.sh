@@ -1,5 +1,9 @@
 #!/bin/bash
 
+echo "Creating a.img..."
+
+bximage -q -mode=create -fd=1.44M a.img
+
 echo "Building Docker image..."
 
 docker build -t brokenthorn .
@@ -16,7 +20,7 @@ if [ -f "a.img" ]; then
 else
 	echo "Floppy disk image a.img doesn't exist."
 fi
-echo "Copying stage2 to image..."
+echo "Copying stage2 to a.img..."
 
 export MOUNT_OUT=`hdiutil attach a.img`
 export DISK_NAME=`echo $MOUNT_OUT | awk -F' /' '{print $1}'`
