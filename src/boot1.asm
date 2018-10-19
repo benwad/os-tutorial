@@ -59,7 +59,7 @@ printDone:
 
 readSectors:
 	.main
-		mov	di, 0x0005	; Five retries for error
+		mov	di, 0x0005			; Five retries for error
 	.sectorLoop
 		push	ax
 		push	bx
