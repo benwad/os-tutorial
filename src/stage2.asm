@@ -12,11 +12,14 @@ jmp main		; Jump to main
 %include "stdio.inc"
 %include "gdt.inc"
 %include "a20.inc"
+%include "fat12.inc"
+%include "common.inc"
 
 ;*************************************************
 ;	Data section
 ;*************************************************
-msgLoading	db "Preparing to load operating system...", 0x0d, 0x0a, 0x00
+msgLoading	db 0x0d, 0x0a, "Searching for operating system...", 0x00
+msgFailure	db 0x0d, 0x0a, "*** FATAL: MISSING OR CORRUPT KRNL.SYS. Press any key to reboot.", 0x0d, 0x0a, 0x0a, 0x00
 
 ;*************************************************
 ;	ENTRY POINT FOR STAGE 2
@@ -41,12 +44,6 @@ main:
 	sti			; Enable interrupts
 
 	;----------------------------------------------
-	;	Print loading message
-	;----------------------------------------------
-	mov	si, msgLoading
-	call	puts16
-
-	;----------------------------------------------
 	;	Install our GDT
 	;----------------------------------------------
 	call installGDT
@@ -57,8 +54,38 @@ main:
 	call enableA20_output_port
 
 	;----------------------------------------------
+	;	Print loading message
+	;----------------------------------------------
+	mov	si, msgLoading
+	call	puts16
+
+	;----------------------------------------------
+	;	Initialise filesystem
+	;----------------------------------------------
+	call	loadRoot		; Load root directory table
+
+	;----------------------------------------------
+	;	Load kernel
+	;----------------------------------------------
+	mov	ebx, 0			; BX:BP points to buffer to load to
+	mov	ebp, IMAGE_RMODE_BASE
+	mov	esi, imageName		; Our file to load
+	call	loadFile		; Load our file
+	mov	DWORD [imageSize], ecx	; Size of our kernel
+	cmp	ax, 0			; Test for success
+	je	enterStage3		; Yep -- onto stage 3!
+	mov	si, msgFailure		; Nope -- print error
+	call	puts16
+	mov	ah, 0
+	int	0x16			; Await keypress
+	int	0x19			; Warm boot computer
+	cli				; If we get here, something went really wrong
+	hlt
+
+	;----------------------------------------------
 	;	Go into pmode
 	;----------------------------------------------
+enterStage3:
 	cli
 	mov	eax, cr0		; Set bit 0 in cr0 - enter pmode
 	or	eax, 0b1
@@ -74,29 +101,30 @@ main:
 ;*************************************************
 bits 32			; Welcome to the 32 bit world!
 
-msgHello32	db "Hello 32-Bit World", 0x0a, 0x00
-msgNext		db "This is a different colour", 0x0a, 0x00
-
 stage3:
 	;----------------------------------------------
 	;	Set registers
 	;----------------------------------------------
-	mov	ax, 0x10	; Set data segments to data selector (0x10)
+	mov	ax, DATA_DESC	; Set data segments to data selector (0x10)
 	mov	ds, ax
 	mov	ss, ax
 	mov	es, ax
 	mov	esp, 0x90000	; Stack begins from 0x90000
 
-	call	clrScr32	; Clear the screen
-	mov	bx, 0x0		; Set cursor pos to 0,0
-	call	movCur
-	mov	ebx, msgHello32	; Say hello
-	call	puts32
+	; Copy kernel to 1MB (0x10000)
+copyImage:
+	mov	eax, DWORD [imageSize]
+	movzx	ebx, word [bpbBytesPerSector]
+	mul	ebx
+	mov	ebx, 4
+	div	ebx
+	cld
+	mov	esi, IMAGE_RMODE_BASE
+	mov	edi, IMAGE_PMODE_BASE
+	mov	ecx, eax
+	rep	movsd				; Copy image to its protected mode address
 
-	; Change attribute
-	mov	BYTE [_CharAttr], 0b01101111
-	mov	ebx, msgNext
-	call	puts32
+	call	CODE_DESC:IMAGE_PMODE_BASE	; Execute our kernel!
 
 ;*************************************************
 ;	Stop execution

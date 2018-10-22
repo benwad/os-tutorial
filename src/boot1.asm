@@ -58,9 +58,9 @@ printDone:
 ;*************************************************
 
 readSectors:
-	.main
+	.main:
 		mov	di, 0x0005			; Five retries for error
-	.sectorLoop
+	.sectorLoop:
 		push	ax
 		push	bx
 		push	cx
@@ -81,7 +81,7 @@ readSectors:
 		pop	ax
 		jnz	.sectorLoop			; Attempt to read again
 		int	0x18
-	.success
+	.success:
 		mov	si, msgProgress
 		call	print
 		pop	cx
@@ -101,7 +101,7 @@ clusterLba:
 	xor	cx, cx
 	mov	cl, BYTE [bpbSectorsPerCluster]	; Convert byte to word
 	mul	cx
-	add	ax, WORD [dataSector]		; Base data sector
+	add	ax, WORD [datasector]		; Base data sector
 	ret
 
 ;*************************************************
@@ -167,8 +167,8 @@ main:
 		mov	al, BYTE [bpbNumberOfFATs]	; Number of FATs
 		mul	WORD [bpbSectorsPerFAT]		; sectors used by FATs
 		add	ax, WORD [bpbReservedSectors]	; Adjust for bootsector
-		mov	WORD [dataSector], ax		; base of root directory
-		add	WORD [dataSector], cx
+		mov	WORD [datasector], ax		; base of root directory
+		add	WORD [datasector], cx
 		
 		; Read root directory into memory (7c00:0200)
 		mov	bx, 0x0200			; Copy root dir above bootcode
@@ -279,7 +279,7 @@ main:
 	absoluteHead	db	0x00
 	absoluteTrack	db	0x00
 
-	dataSector	dw	0x0000
+	datasector	dw	0x0000
 	cluster		dw	0x0000
 	imageName	db	"KRNLDR  SYS"
 	msgLoading	db	0x0d, 0x0a, "Loading Boot Image ", 0x0d, 0x0a, 0x00
